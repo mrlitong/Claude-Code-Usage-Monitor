@@ -856,7 +856,6 @@ The test suite includes comprehensive coverage for:
 - UI table rendering
 - CLI parameter handling
 - Error handling and edge cases
-
 ## 🔧 Development Installation
 
 For contributors and developers who want to work with the source code:

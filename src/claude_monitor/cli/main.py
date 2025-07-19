@@ -38,9 +38,11 @@ from claude_monitor.ui.table_views import TableViewsController
 DataUpdateCallback = Callable[[Dict[str, Any]], None]
 SessionChangeCallback = Callable[[str, str, Optional[Dict[str, Any]]], None]
 
+
 def get_standard_claude_paths() -> List[str]:
     """Get list of standard Claude data directory paths to check."""
     return ["~/.claude/projects", "~/.config/claude/projects"]
+
 
 def discover_claude_data_paths(custom_paths: Optional[List[str]] = None) -> List[Path]:
     """Discover all available Claude data directories.
@@ -63,6 +65,7 @@ def discover_claude_data_paths(custom_paths: Optional[List[str]] = None) -> List
             discovered_paths.append(path)
 
     return discovered_paths
+
 
 def main(argv: Optional[List[str]] = None) -> int:
     """Main entry point with direct pydantic-settings integration."""
@@ -100,6 +103,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         logger.error(f"Monitor failed: {e}", exc_info=True)
         traceback.print_exc()
         return 1
+
 
 def _run_monitoring(args: argparse.Namespace) -> None:
     """Main monitoring implementation without facade."""
@@ -249,6 +253,7 @@ def _run_monitoring(args: argparse.Namespace) -> None:
     finally:
         restore_terminal(old_terminal_settings)
 
+
 def _get_initial_token_limit(
     args: argparse.Namespace, data_path: Union[str, Path]
 ) -> int:
@@ -300,6 +305,7 @@ def _get_initial_token_limit(
     # For standard plans, just get the limit
     return get_token_limit(plan)
 
+
 def handle_application_error(
     exception: Exception,
     component: str = "cli_main",
@@ -335,6 +341,7 @@ def handle_application_error(
 
     sys.exit(exit_code)
 
+
 def validate_cli_environment() -> Optional[str]:
     """Validate the CLI environment and return error message if invalid.
 
@@ -363,6 +370,7 @@ def validate_cli_environment() -> Optional[str]:
 
     except Exception as e:
         return f"Environment validation failed: {e}"
+
 
 def _run_table_view(
     args: argparse.Namespace, data_path: Path, view_mode: str, console: Console
@@ -569,4 +577,3 @@ def _run_table_view(
         print_themed(f"Unexpected error displaying {view_mode} data: {e}", style="error")
 if __name__ == "__main__":
     sys.exit(main())
-
