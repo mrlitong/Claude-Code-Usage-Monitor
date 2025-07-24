@@ -41,6 +41,56 @@ DataUpdateCallback = Callable[[Dict[str, Any]], None]
 SessionChangeCallback = Callable[[str, str, Optional[Dict[str, Any]]], None]
 
 
+def _print_help() -> None:
+    """Print help information for the CLI."""
+    help_text = f"""
+claude-monitor {__version__} - Real-time terminal monitoring tool for Claude AI token usage
+
+Usage: claude-monitor [OPTIONS]
+
+Options:
+  --plan PLAN               Plan type: pro, max5, max20, or custom (default: custom)
+  --custom-limit-tokens N   Token limit for custom plan (must be > 0)
+  --timezone TIMEZONE       Timezone (auto-detected). Examples: UTC, America/New_York, Europe/London
+  --time-format FORMAT      Time format: 12h, 24h, or auto (default: auto)
+  --theme THEME            Display theme: light, dark, classic, or auto (default: auto)
+  --refresh-rate SECONDS   Data refresh rate in seconds (1-60, default: 10)
+  --refresh-per-second HZ  Display refresh rate in Hz (0.1-20.0, default: 0.75)
+  --reset-hour HOUR        Daily reset hour (0-23)
+  --log-level LEVEL        Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
+  --log-file PATH          Log file path
+  --debug                  Enable debug logging
+  --version, -v            Show version information
+  --clear                  Clear saved configuration
+  --help, -h               Show this help message
+
+View Modes:
+  --view realtime          Live monitoring display (default)
+  --view daily             Daily usage statistics
+  --view monthly           Monthly usage statistics
+  --view session           Session-based view
+
+Command Aliases:
+  claude-monitor           Primary command
+  claude-code-monitor      Full descriptive name
+  cmonitor                 Short alias
+  ccmonitor                Alternative short alias
+  ccm                      Shortest alias
+
+Examples:
+  claude-monitor                                    # Default (Custom plan with auto-detection)
+  claude-monitor --plan pro                         # Pro plan (~19,000 tokens)
+  claude-monitor --plan max5                        # Max5 plan (~88,000 tokens)
+  claude-monitor --plan custom --custom-limit-tokens 100000  # Custom with explicit limit
+  claude-monitor --timezone America/New_York        # Set timezone
+  claude-monitor --theme dark                       # Dark theme
+  claude-monitor --view daily                       # Show daily statistics
+
+For more information, visit: https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor
+"""
+    print(help_text.strip())
+
+
 def get_standard_claude_paths() -> List[str]:
     """Get list of standard Claude data directory paths to check."""
     return ["~/.claude/projects", "~/.config/claude/projects"]
@@ -78,8 +128,38 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"claude-monitor {__version__}")
         return 0
 
+    # Handle --help manually since pydantic-settings doesn't do it automatically
+    if "--help" in argv or "-h" in argv:
+        _print_help()
+        return 0
+
     try:
-        settings = Settings.load_with_last_used(argv)
+        # Parse arguments manually first
+        parser = argparse.ArgumentParser(prog="claude-monitor", add_help=False)
+        parser.add_argument("--plan", type=str, default="custom")
+        parser.add_argument("--view", type=str, default="realtime")
+        parser.add_argument("--timezone", type=str, default="auto")
+        parser.add_argument("--theme", type=str, default="auto")
+        parser.add_argument("--custom-limit-tokens", type=int)
+        parser.add_argument("--refresh-rate", type=int, default=10)
+        parser.add_argument("--refresh-per-second", type=float, default=0.75)
+        parser.add_argument("--reset-hour", type=int)
+        parser.add_argument("--log-level", type=str, default="INFO")
+        parser.add_argument("--log-file", type=str)
+        parser.add_argument("--debug", action="store_true")
+        parser.add_argument("--clear", action="store_true")
+
+        parsed_args, _ = parser.parse_known_args(argv)
+
+        # Convert parsed args to dict for Settings
+        settings_dict = {
+            k.replace("-", "_"): v
+            for k, v in vars(parsed_args).items()
+            if v is not None
+        }
+
+        # Load settings with parsed values
+        settings = Settings.load_with_last_used_and_dict(argv, settings_dict)
 
         setup_environment()
         ensure_directories()
@@ -92,7 +172,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         init_timezone(settings.timezone)
 
         args = settings.to_namespace()
-
         _run_monitoring(args)
 
         return 0

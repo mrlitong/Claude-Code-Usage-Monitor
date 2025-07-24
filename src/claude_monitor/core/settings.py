@@ -259,6 +259,99 @@ class Settings(BaseSettings):
         return (init_settings,)
 
     @classmethod
+    def load_with_last_used_and_dict(
+        cls,
+        argv: Optional[List[str]] = None,
+        parsed_dict: Optional[Dict[str, Any]] = None,
+    ) -> "Settings":
+        """Load settings with last used params and parsed arguments."""
+        if argv and "--version" in argv:
+            print(f"claude-monitor {__version__}")
+            import sys
+
+            sys.exit(0)
+
+        clear_config = argv and "--clear" in argv
+
+        if clear_config:
+            last_used = LastUsedParams()
+            last_used.clear()
+            # Use parsed dict if provided
+            if parsed_dict:
+                settings = cls(**parsed_dict, _cli_parse_args=[])
+            else:
+                settings = cls(
+                    _cli_parse_args=True,
+                    _cli_prog_name="claude-monitor",
+                    _cli_args=argv,
+                )
+        else:
+            last_used = LastUsedParams()
+            last_params = last_used.load()
+
+            # Merge parsed dict with last params
+            if parsed_dict:
+                # CLI args override last used params
+                merged_params = {**last_params, **parsed_dict}
+                settings = cls(**merged_params, _cli_parse_args=[])
+            else:
+                settings = cls(
+                    _cli_parse_args=True,
+                    _cli_prog_name="claude-monitor",
+                    _cli_args=argv,
+                )
+
+            # Apply last used params if not provided in CLI
+            if not parsed_dict:
+                cli_provided_fields = set()
+                if argv:
+                    for _i, arg in enumerate(argv):
+                        if arg.startswith("--"):
+                            field_name = arg[2:].replace("-", "_")
+                            if field_name in cls.model_fields:
+                                cli_provided_fields.add(field_name)
+
+                for key, value in last_params.items():
+                    if key == "plan":
+                        continue
+                    if not hasattr(settings, key):
+                        continue
+                    if key not in cli_provided_fields:
+                        setattr(settings, key, value)
+
+        if settings.timezone == "auto":
+            settings.timezone = cls._get_system_timezone()
+        if settings.time_format == "auto":
+            settings.time_format = cls._get_system_time_format()
+
+        if settings.debug:
+            settings.log_level = "DEBUG"
+
+        if settings.theme == "auto" or (
+            "theme" not in (parsed_dict or {}) and not clear_config
+        ):
+            from claude_monitor.terminal.themes import (
+                BackgroundDetector,
+                BackgroundType,
+            )
+
+            detector = BackgroundDetector()
+            detected_bg = detector.detect_background()
+
+            if detected_bg == BackgroundType.LIGHT:
+                settings.theme = "light"
+            elif detected_bg == BackgroundType.DARK:
+                settings.theme = "dark"
+            else:
+                settings.theme = "auto"
+
+        if not clear_config:
+            last_used = LastUsedParams()
+            last_used.save(settings)
+
+        return settings
+
+    @classmethod
     def load_with_last_used(cls, argv: Optional[List[str]] = None) -> "Settings":
         """Load settings with last used params support (default behavior)."""
         if argv and "--version" in argv:
@@ -272,12 +365,18 @@ class Settings(BaseSettings):
         if clear_config:
             last_used = LastUsedParams()
             last_used.clear()
-            settings = cls(_cli_parse_args=argv)
+            # Fix: Pass argv as list, not with _cli_parse_args
+            settings = cls(
+                _cli_parse_args=True, _cli_prog_name="claude-monitor", _cli_args=argv
+            )
         else:
             last_used = LastUsedParams()
             last_params = last_used.load()
 
-            settings = cls(_cli_parse_args=argv)
+            # Fix: Pass argv as list, not with _cli_parse_args
+            settings = cls(
+                _cli_parse_args=True, _cli_prog_name="claude-monitor", _cli_args=argv
+            )
 
             cli_provided_fields = set()
             if argv:
